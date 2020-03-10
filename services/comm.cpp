@@ -22,6 +22,8 @@
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
+#define MSG_DEBUG
+
 #include <config.h>
 
 #include <signal.h>
@@ -402,7 +404,7 @@ bool MsgChannel::flush_writebuf(bool blocking)
             }
 
             errno = send_errno;
-            log_perror("flush_writebuf() failed");
+            log_perror(string( "flush_writebuf() failed " ) + name);
             error = true;
             break;
         } else if (ret == 0) {
@@ -1174,6 +1176,10 @@ Msg *MsgChannel::get_msg(int timeout, bool eofAllowed)
         type = (enum MsgType) t;
     }
 
+#ifdef MSG_DEBUG
+    trace() << "recv msg (" << name << "): " << Msg::readableMsgType( type ) << endl;
+#endif
+
     switch (type) {
     case M_UNKNOWN:
         set_error();
@@ -1310,6 +1316,10 @@ bool MsgChannel::send_msg(const Msg &m, int flags)
     if (instate == NEED_PROTO && !wait_for_protocol()) {
         return false;
     }
+
+#ifdef MSG_DEBUG
+    trace() << "send msg (" << name << "): " << Msg::readableMsgType( m.type ) << endl;
+#endif
 
     chop_output();
     size_t msgtogo_old = msgtogo;
@@ -1769,7 +1779,8 @@ MsgChannel *DiscoverSched::try_get_scheduler()
                         << ":" << ntohs(remote_addr.sin_port) << " (unknown version)" << endl;
                 } else {
                     log_info() << "Suitable scheduler found at " << inet_ntoa(remote_addr.sin_addr)
-                        << ":" << ntohs(remote_addr.sin_port) << " (version: " << version << ")" << endl;
+                        << ":" << ntohs(remote_addr.sin_port) << " (version:" << version
+                        << " start:" << start_time << ")" << endl;
                 }
                 if (best_version != 0)
                     multiple = true;
@@ -1951,6 +1962,49 @@ GetCSMsg::GetCSMsg(const Environments &envs, const std::string &f,
     // These have been introduced in protocol version 42.
     if( required_features & ( NODE_FEATURE_ENV_XZ | NODE_FEATURE_ENV_ZSTD ))
         minimal_host_version = max( minimal_host_version, 42 );
+}
+
+std::string Msg::readableMsgType( MsgType type )
+{
+  switch ( type )
+  {
+  case M_BLACKLIST_HOST_ENV:  return "M_BLACKLIST_HOST_ENV";
+  case M_COMPILE_FILE:        return "M_COMPILE_FILE";
+  case M_COMPILE_RESULT:      return "M_COMPILE_RESULT";
+  case M_CS_CONF:             return "M_CS_CONF";
+  case M_END:                 return "M_END";
+  case M_FILE_CHUNK:          return "M_FILE_CHUNK";
+  case M_GET_CS:              return "M_GET_CS";
+  case M_GET_INTERNALS:       return "M_GET_INTERNALS";
+  case M_GET_NATIVE_ENV:      return "M_GET_NATIVE_ENV";
+  case M_JOB_BEGIN:           return "M_JOB_BEGIN";
+  case M_JOB_DONE:            return "M_JOB_DONE";
+  case M_JOB_ERROR:           return "M_JOB_ERROR";
+  case M_JOB_LOCAL_BEGIN:     return "M_JOB_LOCAL_BEGIN";
+  case M_JOB_LOCAL_DONE:      return "M_JOB_LOCAL_DONE";
+  case M_LOGIN:               return "M_LOGIN";
+  case M_MON_GET_CS:          return "M_MON_GET_CS";
+  case M_MON_JOB_BEGIN:       return "M_MON_JOB_BEGIN";
+  case M_MON_JOB_DONE:        return "M_MON_JOB_DONE";
+  case M_MON_LOCAL_JOB_BEGIN: return "M_MON_LOCAL_JOB_BEGIN";
+  case M_MON_LOGIN:           return "M_MON_LOGIN";
+  case M_MON_STATS:           return "M_MON_STATS";
+  case M_MON_SCHEDULER_INFO:  return "M_MON_SCHEDULER_INFO";
+  case M_NATIVE_ENV:          return "M_NATIVE_ENV";
+  case M_NO_CS:               return "M_NO_CS";
+  case M_PING:                return "M_PING";
+  case M_STATS:               return "M_STATS";
+  case M_STATUS_TEXT:         return "M_STATUS_TEXT";
+  case M_TEXT:                return "M_TEXT";
+  case M_TIMEOUT:             return "M_TIMEOUT";
+  case M_TRANFER_ENV:         return "M_TRANFER_ENV";
+  case M_USE_CS:              return "M_USE_CS";
+  case M_VERIFY_ENV:          return "M_VERIFY_ENV";
+  case M_VERIFY_ENV_RESULT:   return "M_VERIFY_ENV_RESULT";
+  default:                    break;
+  }
+
+  return "M_UNKNOWN";
 }
 
 void GetCSMsg::fill_from_channel(MsgChannel *c)
@@ -2712,12 +2766,14 @@ void StatusTextMsg::fill_from_channel(MsgChannel *c)
 {
     Msg::fill_from_channel(c);
     *c >> text;
+    log_error() << "Received status: " << text << endl;
 }
 
 void StatusTextMsg::send_to_channel(MsgChannel *c) const
 {
     Msg::send_to_channel(c);
     *c << text;
+    log_error() << "Sending status: " << text << endl;
 }
 
 void VerifyEnvMsg::fill_from_channel(MsgChannel *c)

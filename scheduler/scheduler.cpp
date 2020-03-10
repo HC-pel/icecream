@@ -354,6 +354,10 @@ static void handle_monitor_stats(CompileServer *cs, StatsMsg *m = 0)
     msg += buffer;
     sprintf(buffer, "Speed:%f\n", server_speed(cs));
     msg += buffer;
+    sprintf(buffer, "ProtocolVersion:%d\n", cs->protocolVersion());
+    msg += buffer;
+    sprintf(buffer, "StartTime:%ld\n", cs->startTime());
+    msg += buffer;
 
     if (m) {
         sprintf(buffer, "Load:%d\n", m->load);
@@ -1045,6 +1049,7 @@ static bool handle_login(CompileServer *cs, Msg *_m)
             return false;
         }
 
+    log_warning() << "login daemon " << m->nodename << endl;
     dbg << "login " << m->nodename << " protocol version: " << cs->protocol
         << " features: " << supported_features_to_string(m->supported_features)
         << " [";
@@ -1090,6 +1095,7 @@ static bool handle_relogin(MsgChannel *mc, Msg *_m)
     cs->setBusyInstalling(0);
 
     std::ostream &dbg = trace();
+    log_warning() << "relogin daemon " << m->nodename << endl;
     dbg << "RELOGIN " << cs->nodeName() << "(" << cs->hostPlatform() << "): [";
 
     for (Environments::const_iterator it = m->envs.begin(); it != m->envs.end(); ++it) {
@@ -1118,6 +1124,8 @@ static bool handle_mon_login(CompileServer *cs, Msg *_m)
     // monitors really want to be fed lazily
     cs->setBulkTransfer();
     cs->setNodeName(cs->name);
+
+    log_warning() << "login monitor " << cs->nodeName() << endl;
 
     for (list<CompileServer *>::const_iterator it = css.begin(); it != css.end(); ++it) {
         handle_monitor_stats(*it);
@@ -1629,6 +1637,7 @@ static bool handle_end(CompileServer *toremove, Msg *m)
 
     switch (toremove->type()) {
     case CompileServer::MONITOR:
+        log_warning() << "logout monitor " << toremove->nodeName() << endl;
         assert(find(monitors.begin(), monitors.end(), toremove) != monitors.end());
         monitors.remove(toremove);
 #if DEBUG_SCHEDULER > 1
@@ -1636,7 +1645,7 @@ static bool handle_end(CompileServer *toremove, Msg *m)
 #endif
         break;
     case CompileServer::DAEMON:
-        log_info() << "remove daemon " << toremove->nodeName() << endl;
+        log_warning() << "logout daemon " << toremove->nodeName() << endl;
 
         notify_monitors(new MonStatsMsg(toremove->hostId(), "State:Offline\n"));
 
@@ -1704,11 +1713,13 @@ static bool handle_end(CompileServer *toremove, Msg *m)
 
         break;
     case CompileServer::LINE:
+        log_warning() << "logout line" << endl;
         toremove->send_msg(TextMsg("200 Good Bye!"));
         controls.remove(toremove);
 
         break;
     default:
+        log_error() << "logout UNKNOWN" << endl;
         trace() << "remote end had UNKNOWN type?" << endl;
         break;
     }

@@ -173,6 +173,8 @@ public:
     virtual void fill_from_channel(MsgChannel *c);
     virtual void send_to_channel(MsgChannel *c) const;
 
+    static std::string readableMsgType( MsgType );
+
     enum MsgType type;
 };
 
