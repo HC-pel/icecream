@@ -705,6 +705,7 @@ int work_it(CompileJob &j, unsigned int job_stat[], MsgChannel *client, CompileR
                     }
                 } else {
                     log_warning() << "Remote compilation aborted with exit code " << shell_exit_status(status) << endl;
+                    return_value = EXIT_COMPILER_CRASHED;
                 }
 
                 return return_value;
