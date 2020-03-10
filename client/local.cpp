@@ -273,6 +273,7 @@ int build_local(CompileJob &job, MsgChannel *local_daemon, struct rusage *used)
     trace() << "invoking:" << argstxt << endl;
 
     if (!local_daemon) {
+        log_block b("dcc_lock_host local compiler");
         if (!dcc_lock_host()) {
             log_error() << "can't lock for local job" << endl;
             return EXIT_DISTCC_FAILED;

@@ -514,11 +514,16 @@ static int build_remote_int(CompileJob &job, UseCSMsg *usecs, MsgChannel *local_
                 throw client_error(32, "Error 18 - (fork error?)");
             }
 
-            if (!dcc_lock_host()) {
-                log_error() << "can't lock for local cpp" << endl;
-                return EXIT_DISTCC_FAILED;
+/*
+            {
+              log_block b("dcc_lock_host remote preprocessor");
+              if (!dcc_lock_host()) {
+                  log_error() << "can't lock for remote cpp" << endl;
+                  return EXIT_DISTCC_FAILED;
+              }
             }
             HostUnlock hostUnlock; // automatic dcc_unlock()
+*/
 
             /* This will fork, and return the pid of the child.  It will not
                return for the child itself.  If it returns normally it will have
@@ -870,9 +875,12 @@ int build_remote(CompileJob &job, MsgChannel *local_daemon, const Environments &
         const CharBufferDeleter preproc_holder(preproc);
         int cpp_fd = open(preproc, O_WRONLY);
 
-        if (!dcc_lock_host()) {
-            log_error() << "can't lock for local cpp" << endl;
-            return EXIT_DISTCC_FAILED;
+        {
+          log_block b("dcc_lock_host local preprocessor");
+          if (!dcc_lock_host()) {
+              log_error() << "can't lock for local cpp" << endl;
+              return EXIT_DISTCC_FAILED;
+          }
         }
         HostUnlock hostUnlock; // automatic dcc_unlock()
 
