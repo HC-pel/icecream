@@ -27,6 +27,7 @@
 #include <signal.h>
 #include <limits.h>
 #include <fcntl.h>
+#include <execinfo.h>
 #ifdef __linux__
 #include <dlfcn.h>
 #endif
@@ -221,6 +222,25 @@ void flush_debug()
     if (logfile_file.is_open()) {
         logfile_file.flush();
     }
+}
+
+std::ostream & log_backtrace()
+{
+  void *array[ 1000 ];
+
+  size_t size = backtrace( array, 1000 );
+  char **strings = backtrace_symbols (array, size);
+
+  trace() << "Backtrace begin" << std::endl;
+
+  for ( size_t xx = 0; xx < size; xx++)
+  {
+    trace() << strings[ xx ] << std::endl;
+  }
+
+  free( strings );
+
+  return trace() << "Backtrace end" << std::endl;
 }
 
 unsigned log_block::nesting;
