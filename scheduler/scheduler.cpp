@@ -97,7 +97,8 @@ static string pidFilePath;
 static map<int, CompileServer *> fd2cs;
 static volatile sig_atomic_t exit_main_loop = false;
 
-time_t starttime;
+time_t starttimeReal;
+time_t starttimeBroadcast;
 time_t last_announce;
 static string scheduler_interface = "";
 static unsigned int scheduler_port = 8765;
@@ -211,7 +212,7 @@ static void add_job_stats(Job *job, JobDoneMsg *msg)
 #if DEBUG_SCHEDULER > 1
     if (job->argFlags() < 7000) {
         trace() << "add_job_stats " << job->language() << " "
-                << (time(0) - starttime) << " "
+                << (time(0) - starttimeReal) << " "
                 << st.compileTimeUser() << " "
                 << (job->argFlags() & CompileJob::Flag_g ? '1' : '0')
                 << (job->argFlags() & CompileJob::Flag_g3 ? '1' : '0')
@@ -1398,7 +1399,7 @@ static bool handle_control_login(CompileServer *cs)
 
     std::ostringstream o;
     o << "200-ICECC " VERSION ": "
-      << time(0) - starttime << "s uptime, "
+      << time(0) - starttimeReal << "s uptime, "
       << css.size() << " hosts, "
       << jobs.size() << " jobs in queue "
       << "(" << new_job_id << " total)." << endl;
@@ -1871,13 +1872,13 @@ static void handle_scheduler_announce(const char* buf, const char* netname, bool
     {
         if (other_netname == netname)
         {
-            if (other_protocol_version > PROTOCOL_VERSION || (other_protocol_version == PROTOCOL_VERSION && other_time < starttime))
+            if (other_protocol_version > PROTOCOL_VERSION || (other_protocol_version == PROTOCOL_VERSION && other_time < starttimeBroadcast))
             {
                 if (!persistent_clients){
                     log_info() << "Scheduler from " << inet_ntoa(broad_addr.sin_addr)
                         << ":" << ntohs(broad_addr.sin_port)
-                        << " (version " << int(other_protocol_version) << ") has announced itself as a preferred"
-                        " scheduler, disconnecting all connections." << endl;
+                        << " (version:" << int(other_protocol_version) << " start:" << starttimeBroadcast
+                        << ") has announced itself as a preferred scheduler, disconnecting all connections." << endl;
                     if (!css.empty() || !monitors.empty())
                     {
                         while (!css.empty())
@@ -2104,9 +2105,10 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    starttime = time(0);
+    starttimeReal = time(0);
+    starttimeBroadcast = starttimeReal;
     if( getenv( "ICECC_FAKE_STARTTIME" ) != NULL )
-        starttime -= 1000;
+        starttimeBroadcast = 946684800; // 01.01.2000
 
     ofstream pidFile;
     string progName = argv[0];
@@ -2124,8 +2126,8 @@ int main(int argc, char *argv[])
 
     time_t next_listen = 0;
 
-    Broadcasts::broadcastSchedulerVersion(scheduler_port, netname, starttime);
-    last_announce = starttime;
+    Broadcasts::broadcastSchedulerVersion(scheduler_port, netname, starttimeBroadcast);
+    last_announce = starttimeBroadcast;
 
     while (!exit_main_loop) {
         int timeout = prune_servers();
@@ -2138,7 +2140,7 @@ int main(int argc, char *argv[])
            their daemons if we are the preferred scheduler (daemons with version new enough
            should automatically select the best scheduler, but old daemons connect randomly). */
         if (last_announce + 120 < time(NULL)) {
-            Broadcasts::broadcastSchedulerVersion(scheduler_port, netname, starttime);
+            Broadcasts::broadcastSchedulerVersion(scheduler_port, netname, starttimeBroadcast);
             last_announce = time(NULL);
         }
 
@@ -2312,7 +2314,7 @@ int main(int argc, char *argv[])
                     log_info() << "broadcast from " << inet_ntoa(broad_addr.sin_addr)
                         << ":" << ntohs(broad_addr.sin_port)
                         << " (version " << daemon_version << ")\n";
-                    int reply_len = DiscoverSched::prepareBroadcastReply(buf, netname, starttime);
+                    int reply_len = DiscoverSched::prepareBroadcastReply(buf, netname, starttimeBroadcast);
                     if (sendto(broad_fd, buf, reply_len, 0,
                                 (struct sockaddr *) &broad_addr, broad_len) != reply_len) {
                         log_perror("sendto()");
