@@ -93,6 +93,7 @@ static void dcc_show_usage(void)
         "   ICECC_CC                   set C compiler name (default gcc).\n"
         "   ICECC_CXX                  set C++ compiler name (default g++).\n"
         "   ICECC_REMOTE_CPP           set to 1 or 0 to override remote preprocessing\n"
+        "   ICECC_CLANG_REMOTE_CPP     set to 1 or 0 to override remote preprocessing\n"
         "   ICECC_IGNORE_UNVERIFIED    if set, hosts where environment cannot be verified are not used.\n"
         "   ICECC_EXTRAFILES           additional files used in the compilation.\n"
         "   ICECC_COLOR_DIAGNOSTICS    set to 1 or 0 to override color diagnostics support.\n"
@@ -100,6 +101,7 @@ static void dcc_show_usage(void)
         "   ICECC_COMPRESSION          if set, the libzstd compression level (1 to 19, default: 1)\n"
         "   ICECC_ENV_COMPRESSION      compression type for icecc environments [none|gzip|bzip2|zstd|xz]\n"
         "   ICECC_SLOW_NETWORK         set to 1 to send network data in smaller chunks\n"
+        "   ICECC_TEST_REMOTEBUILD     if set always try to build remote\n"
         );
 }
 
