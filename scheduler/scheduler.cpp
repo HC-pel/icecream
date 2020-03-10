@@ -1639,14 +1639,22 @@ static bool handle_end(CompileServer *toremove, Msg *m)
     (void)m;
 #endif
 
+    bool found = true;
+
     switch (toremove->type()) {
     case CompileServer::MONITOR:
         log_warning() << "logout monitor " << toremove->nodeName() << endl;
-        assert(find(monitors.begin(), monitors.end(), toremove) != monitors.end());
+        found = ( find(monitors.begin(), monitors.end(), toremove) != monitors.end() );
+        assert( found );
+        if ( !found )
+        {
+          log_error() << "monitor not found " << toremove->nodeName() << endl;
+        }
         monitors.remove(toremove);
 #if DEBUG_SCHEDULER > 1
         trace() << "handle_end(moni) " << monitors.size() << endl;
 #endif
+        notify_monitors( new MonSchedulerInfoMsg( starttimeReal, monitors.size() ) );
         break;
     case CompileServer::DAEMON:
         log_warning() << "logout daemon " << toremove->nodeName() << endl;
@@ -1729,7 +1737,10 @@ static bool handle_end(CompileServer *toremove, Msg *m)
     }
 
     fd2cs.erase(toremove->fd);
-    delete toremove;
+    if ( found )
+    {
+      delete toremove;
+    }
     return true;
 }
 
