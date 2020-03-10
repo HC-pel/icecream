@@ -222,10 +222,12 @@ int work_it(CompileJob &j, unsigned int job_stat[], MsgChannel *client, CompileR
         char **argv = new char*[argc + 1];
         int i = 0;
         bool clang = false;
+        bool clangCl = false;
 
         if (IS_PROTOCOL_30(client)) {
             assert(!j.compilerName().empty());
             clang = (j.compilerName().find("clang") != string::npos);
+            clangCl = ( j.compilerName().find( "clang-cl" ) != string::npos );
             argv[i++] = strdup(("/usr/bin/" + j.compilerName()).c_str());
         } else {
             if (j.language() == CompileJob::Lang_C) {
@@ -237,18 +239,21 @@ int work_it(CompileJob &j, unsigned int job_stat[], MsgChannel *client, CompileR
             }
         }
 
-        argv[i++] = strdup("-x");
-        if (j.language() == CompileJob::Lang_C) {
-          argv[i++] = strdup("c");
-        } else if (j.language() == CompileJob::Lang_CXX) {
-          argv[i++] = strdup("c++");
-        } else if (j.language() == CompileJob::Lang_OBJC) {
-          argv[i++] = strdup("objective-c");
-        } else if (j.language() == CompileJob::Lang_OBJCXX) {
-          argv[i++] = strdup("objective-c++");
-        } else {
-            error_client(client, "language not supported");
-            log_perror("language not supported");
+        if ( !clangCl )
+        {
+          argv[i++] = strdup("-x");
+          if (j.language() == CompileJob::Lang_C) {
+            argv[i++] = strdup("c");
+          } else if (j.language() == CompileJob::Lang_CXX) {
+            argv[i++] = strdup("c++");
+          } else if (j.language() == CompileJob::Lang_OBJC) {
+            argv[i++] = strdup("objective-c");
+          } else if (j.language() == CompileJob::Lang_OBJCXX) {
+            argv[i++] = strdup("objective-c++");
+          } else {
+              error_client(client, "language not supported");
+              log_perror("language not supported");
+          }
         }
 
         if( clang ) {
@@ -309,7 +314,7 @@ int work_it(CompileJob &j, unsigned int job_stat[], MsgChannel *client, CompileR
         assert(i <= argc);
 
         argstxt.clear();
-        for (int pos = 1;
+        for (int pos = 0;
              pos < i;
              ++pos ) {
             argstxt += ' ';

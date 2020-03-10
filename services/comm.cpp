@@ -2238,7 +2238,14 @@ void CompileFileMsg::send_to_channel(MsgChannel *c) const
             if (job->compilerName().find("clang") != string::npos) {
                 // Hack for compilerwrapper.
                 std::list<std::string> flags = job->remoteFlags();
-                flags.push_front("clang");
+                if ( job->compilerName().find( "clang-cl" ) != string::npos )
+                {
+                  flags.push_front( "clang-cl" );
+                }
+                else
+                {
+                  flags.push_front("clang");
+                }
                 *c << flags;
             } else {
                 *c << job->remoteFlags();
@@ -2269,6 +2276,11 @@ void CompileFileMsg::send_to_channel(MsgChannel *c) const
 // hardcoded).  For clang, the binary is just clang for both C/C++.
 string CompileFileMsg::remote_compiler_name() const
 {
+    if ( job->compilerName().find( "clang-cl" ) != string::npos)
+    {
+      return "clang-cl";
+    }
+
     if (job->compilerName().find("clang") != string::npos) {
         return "clang";
     }
