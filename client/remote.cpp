@@ -842,7 +842,7 @@ int build_remote(CompileJob &job, MsgChannel *local_daemon, const Environments &
 
         fake_filename += get_absfilename(job.inputFile());
 
-        GetCSMsg getcs(envs, fake_filename, job.language(), torepeat,
+        GetCSMsg getcs(envs, fake_filename, job.language(), job.compilerName(), torepeat,
                        job.targetPlatform(), job.argumentFlags(),
                        preferred_host ? preferred_host : string(),
                        minimalRemoteVersion(job), requiredRemoteFeatures());
@@ -907,7 +907,7 @@ int build_remote(CompileJob &job, MsgChannel *local_daemon, const Environments &
         sprintf(rand_seed, "-frandom-seed=%d", rand());
         job.appendFlag(rand_seed, Arg_Remote);
 
-        GetCSMsg getcs(envs, get_absfilename(job.inputFile()), job.language(), torepeat,
+        GetCSMsg getcs(envs, get_absfilename(job.inputFile()), job.language(), job.compilerName(), torepeat,
                        job.targetPlatform(), job.argumentFlags(),
                        preferred_host ? preferred_host : string(),
                        minimalRemoteVersion(job), 0);

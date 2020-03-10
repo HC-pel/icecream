@@ -233,9 +233,16 @@ static void notify_monitors(Msg *m)
 {
     list<CompileServer *>::iterator it;
     list<CompileServer *>::iterator it_old;
+    const bool isSchedulerInfo = dynamic_cast< MonSchedulerInfoMsg *>( m );
 
     for (it = monitors.begin(); it != monitors.end();) {
         it_old = it++;
+        CompileServer *csIt = ( *it );
+
+        if ( isSchedulerInfo && !IS_PROTOCOL_108( csIt ) )
+        {
+          continue;
+        }
 
         /* If we can't send it, don't be clever, simply close this monitor.  */
         if (!(*it_old)->send_msg(*m, MsgChannel::SendNonBlocking /*| MsgChannel::SendBulkOnly*/)) {
@@ -502,9 +509,9 @@ static bool handle_local_job(CompileServer *cs, Msg *_m)
     }
 
     ++new_job_id;
-    trace() << "handle_local_job " << m->outfile << " " << m->id << endl;
+    trace() << "handle_local_job " << m->inFile << " " << m->id << endl;
     cs->insertClientJobId(m->id, new_job_id);
-    notify_monitors(new MonLocalJobBeginMsg(new_job_id, m->outfile, m->stime, cs->hostId()));
+    notify_monitors(new MonLocalJobBeginMsg(new_job_id, m->inFile, m->language, m->compiler, m->stime, cs->hostId()));
     return true;
 }
 
@@ -1028,6 +1035,7 @@ static bool handle_login(CompileServer *cs, Msg *_m)
     }
 
     cs->setHostPlatform(m->host_platform);
+    cs->setProtocolVersion((unsigned int)m->protocol_version);
     cs->setChrootPossible(m->chroot_possible);
     cs->setSupportedFeatures(m->supported_features);
     cs->pick_new_id();
@@ -1109,10 +1117,13 @@ static bool handle_mon_login(CompileServer *cs, Msg *_m)
     monitors.push_back(cs);
     // monitors really want to be fed lazily
     cs->setBulkTransfer();
+    cs->setNodeName(cs->name);
 
     for (list<CompileServer *>::const_iterator it = css.begin(); it != css.end(); ++it) {
         handle_monitor_stats(*it);
     }
+
+    notify_monitors( new MonSchedulerInfoMsg( starttimeReal, monitors.size() ) );
 
     fd2cs.erase(cs->fd);   // no expected data from them
     return true;
@@ -1273,6 +1284,28 @@ static bool handle_job_done(CompileServer *cs, Msg *_m)
     delete j;
 
     return true;
+}
+
+static bool handle_job_error( CompileServer *cs, Msg *_m )
+{
+  JobErrorMsg *m = dynamic_cast< JobErrorMsg * >( _m );
+
+  if ( !m )
+  {
+    return false;
+  }
+
+  auto monMsg = new JobErrorMsg();
+  *monMsg = *m;
+  if ( uint32_t clientId = m->client_id )
+  {
+    // Der Client weiss die Job-ID nicht. Deshalb über die Client-ID den Job ermitteln.
+    monMsg->job_id = cs->getClientJobId( clientId );
+    monMsg->client_id = 0;
+  }
+  notify_monitors( monMsg );
+
+  return true;
 }
 
 static bool handle_ping(CompileServer *cs, Msg * /*_m*/)
@@ -1708,6 +1741,9 @@ static bool handle_activity(CompileServer *cs)
         break;
     case M_JOB_DONE:
         ret = handle_job_done(cs, m);
+        break;
+    case M_JOB_ERROR:
+        ret = handle_job_error( cs, m );
         break;
     case M_PING:
         ret = handle_ping(cs, m);

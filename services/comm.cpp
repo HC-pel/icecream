@@ -1208,6 +1208,9 @@ Msg *MsgChannel::get_msg(int timeout, bool eofAllowed)
     case M_JOB_DONE:
         m = new JobDoneMsg;
         break;
+    case M_JOB_ERROR:
+        m = new JobErrorMsg;
+        break;
     case M_LOGIN:
         m = new LoginMsg;
         break;
@@ -1234,6 +1237,9 @@ Msg *MsgChannel::get_msg(int timeout, bool eofAllowed)
         break;
     case M_MON_STATS:
         m = new MonStatsMsg;
+        break;
+    case M_MON_SCHEDULER_INFO:
+        m = new MonSchedulerInfoMsg;
         break;
     case M_JOB_LOCAL_BEGIN:
         m = new JobLocalBeginMsg;
@@ -1923,7 +1929,7 @@ void Msg::send_to_channel(MsgChannel *c) const
 }
 
 GetCSMsg::GetCSMsg(const Environments &envs, const std::string &f,
-     CompileJob::Language _lang, unsigned int _count,
+     CompileJob::Language _lang, const std::string &_compiler, unsigned int _count,
      std::string _target, unsigned int _arg_flags,
      const std::string &host, int _minimal_host_version,
      unsigned int _required_features,
@@ -1932,6 +1938,7 @@ GetCSMsg::GetCSMsg(const Environments &envs, const std::string &f,
     , versions(envs)
     , filename(f)
     , lang(_lang)
+    , compiler(_compiler)
     , count(_count)
     , target(_target)
     , arg_flags(_arg_flags)
@@ -1987,6 +1994,10 @@ void GetCSMsg::fill_from_channel(MsgChannel *c)
     if (IS_PROTOCOL_42(c)) {
         *c >> required_features;
     }
+
+    if (IS_PROTOCOL_107(c)) {
+        *c >> compiler;
+    }
 }
 
 void GetCSMsg::send_to_channel(MsgChannel *c) const
@@ -2016,6 +2027,10 @@ void GetCSMsg::send_to_channel(MsgChannel *c) const
     }
     if (IS_PROTOCOL_42(c)) {
         *c << required_features;
+    }
+
+    if (IS_PROTOCOL_107(c)) {
+        *c << compiler;
     }
 }
 
@@ -2267,16 +2282,31 @@ void JobLocalBeginMsg::fill_from_channel(MsgChannel *c)
 {
     Msg::fill_from_channel(c);
     *c >> stime;
-    *c >> outfile;
+    *c >> outFile;
     *c >> id;
+    if ( IS_PROTOCOL_107(c) )
+    {
+      uint32_t lang;
+
+      *c >> inFile;
+      *c >> lang;
+      *c >> compiler;
+      language = static_cast< CompileJob::Language >( lang );
+    }
 }
 
 void JobLocalBeginMsg::send_to_channel(MsgChannel *c) const
 {
     Msg::send_to_channel(c);
     *c << stime;
-    *c << outfile;
+    *c << outFile;
     *c << id;
+    if ( IS_PROTOCOL_107(c) )
+    {
+      *c << inFile;
+      *c << ( uint32_t ) language;
+      *c << compiler;
+    }
 }
 
 void JobLocalDoneMsg::fill_from_channel(MsgChannel *c)
@@ -2377,6 +2407,34 @@ void JobDoneMsg::set_job_id( uint32_t jobId )
     flags &= ~ (uint32_t) UnknownJobId;
 }
 
+void JobErrorMsg::fill_from_channel( MsgChannel *c )
+{
+  Msg::fill_from_channel( c );
+  *c >> job_id;
+  *c >> error;
+  if ( IS_PROTOCOL_107( c ) )
+  {
+    uint32_t localBuildInt = 0;
+
+    *c >> client_id;
+    *c >> localBuildInt;
+
+    localBuild = ( localBuildInt != 0);
+  }
+}
+
+void JobErrorMsg::send_to_channel( MsgChannel *c ) const
+{
+  Msg::send_to_channel(c);
+  *c << job_id;
+  *c << error;
+  if ( IS_PROTOCOL_107( c ) )
+  {
+    *c << client_id;
+    *c << uint32_t( localBuild );
+  }
+}
+
 LoginMsg::LoginMsg(unsigned int myport, const std::string &_nodename, const std::string &_host_platform,
     unsigned int myfeatures)
     : Msg(M_LOGIN)
@@ -2387,6 +2445,7 @@ LoginMsg::LoginMsg(unsigned int myport, const std::string &_nodename, const std:
     , nodename(_nodename)
     , host_platform(_host_platform)
     , supported_features(myfeatures)
+    , protocol_version(0)
 {
 #ifdef HAVE_LIBCAP_NG
     chroot_possible = capng_have_capability(CAPNG_EFFECTIVE, CAP_SYS_CHROOT);
@@ -2414,6 +2473,7 @@ void LoginMsg::fill_from_channel(MsgChannel *c)
     }
 
     noremote = (net_noremote != 0);
+    protocol_version = c->protocol;
 
     supported_features = 0;
     if (IS_PROTOCOL_42(c)) {
@@ -2581,6 +2641,13 @@ void MonLocalJobBeginMsg::fill_from_channel(MsgChannel *c)
     *c >> job_id;
     *c >> stime;
     *c >> file;
+    if ( IS_PROTOCOL_107(c) )
+    {
+      uint32_t lang;
+      *c >> lang;
+      *c >> compiler;
+      language = static_cast< CompileJob::Language >( lang );
+    }
 }
 
 void MonLocalJobBeginMsg::send_to_channel(MsgChannel *c) const
@@ -2590,6 +2657,11 @@ void MonLocalJobBeginMsg::send_to_channel(MsgChannel *c) const
     *c << job_id;
     *c << stime;
     *c << shorten_filename(file);
+    if ( IS_PROTOCOL_107(c) )
+    {
+      *c << ( uint32_t ) language;
+      *c << compiler;
+    }
 }
 
 void MonStatsMsg::fill_from_channel(MsgChannel *c)
@@ -2604,6 +2676,26 @@ void MonStatsMsg::send_to_channel(MsgChannel *c) const
     Msg::send_to_channel(c);
     *c << hostid;
     *c << statmsg;
+}
+
+void MonSchedulerInfoMsg::fill_from_channel( MsgChannel *c )
+{
+  Msg::fill_from_channel( c );
+  uint32_t st;
+
+  *c >> protocolVersion;
+  *c >> st;
+  *c >> monitors;
+
+  startTime = st;
+}
+
+void MonSchedulerInfoMsg::send_to_channel( MsgChannel *c ) const
+{
+  Msg::send_to_channel(c);
+  *c << protocolVersion;
+  *c << ( uint64_t ) startTime;
+  *c << monitors;
 }
 
 void TextMsg::fill_from_channel(MsgChannel *c)
