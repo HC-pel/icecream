@@ -1470,6 +1470,12 @@ bool Daemon::create_env_finished(string env_key)
 
 bool Daemon::handle_job_done(Client *cl, JobDoneMsg *m)
 {
+    if ( cl->job_id == 0 )
+    {
+      // The scheduler doesn't know anything about the job
+      return true;
+    }
+
     if (cl->status == Client::CLIENTWORK) {
         clients.active_processes--;
     }
@@ -1624,6 +1630,7 @@ bool Daemon::handle_compile_file(Client *client, Msg *msg)
         if (!send_scheduler(JobBeginMsg(job->jobID(), clients.size()))) {
             trace() << "can't reach scheduler to tell him about compile file job "
                     << job->jobID() << endl;
+            client->job_id = 0;
             return false;
         }
 
@@ -1799,7 +1806,7 @@ bool Daemon::handle_get_cs(Client *client, Msg *msg)
         client->usecsmsg = new UseCSMsg(umsg->target, "127.0.0.1", daemon_port,
                                         umsg->client_id, true, 1, 0);
         client->status = Client::PENDING_USE_CS;
-        client->job_id = umsg->client_id;
+        client->job_id = 0;
         return true;
     }
 
