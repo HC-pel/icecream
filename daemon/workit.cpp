@@ -665,6 +665,7 @@ int work_it(CompileJob &j, unsigned int job_stat[], MsgChannel *client, CompileR
                             || (rmsg.err.find("failed to map segment from shared object") != string::npos)
                             || (rmsg.err.find("Assertion `NewElts && \"Out of memory\"' failed") != string::npos)
                             || (rmsg.err.find("terminate called after throwing an instance of 'std::bad_alloc'") != string::npos)
+                            || (rmsg.err.find("terminating with uncaught exception of type std::bad_alloc") != string::npos)
                             || (rmsg.err.find("llvm::MallocSlabAllocator::Allocate") != string::npos)) {
                         // the relation between ulimit and memory used is pretty thin ;(
                         log_warning() << "Remote compilation failed, presumably because of running out of memory (exit code "
