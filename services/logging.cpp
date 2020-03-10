@@ -118,7 +118,8 @@ void setup_debug(int level, const string &filename, const string &prefix)
             }
         }
 
-        setenv("SEGFAULT_OUTPUT_NAME", fname.c_str(), false);
+        string segv_fname = fname + ".segv";
+        setenv("SEGFAULT_OUTPUT_NAME", segv_fname.c_str(), false);
 #endif
         output = &logfile_file;
     } else if( const char* ccache_err_fd = getenv( "UNCACHED_ERR_FD" )) {
