@@ -549,6 +549,12 @@ static int build_remote_int(CompileJob &job, UseCSMsg *usecs, MsgChannel *local_
             throw client_error(2, "Error 2 - no server found at " + hostname);
         }
 
+        if ( compiler_is_clang_cl( job ) && !IS_PROTOCOL_107( cserver ) )
+        {
+          log_error() << "server " << hostname << " is too old for clang-cl" << endl;
+          throw client_error( 104, "Error 104 - server " + hostname + " too old for clang-cl" );
+        }
+
         if (!got_env) {
             log_block b("Transfer Environment");
             // transfer env

@@ -1053,6 +1053,13 @@ static bool handle_login(CompileServer *cs, Msg *_m)
             return false;
         }
 
+    if ( !IS_PROTOCOL_107( cs ) )
+    {
+      log_warning() << "login denied daemon " << m->nodename << ", protocol version " << cs->protocol << " too old"
+                    << endl;
+      return false;
+    }
+
     log_warning() << "login daemon " << m->nodename << endl;
     dbg << "login " << m->nodename << " protocol version: " << cs->protocol
         << " features: " << supported_features_to_string(m->supported_features)
