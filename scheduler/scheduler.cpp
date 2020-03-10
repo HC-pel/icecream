@@ -230,17 +230,28 @@ static bool handle_end(CompileServer *cs, Msg *);
 
 static void notify_monitors(Msg *m)
 {
+    list<CompileServer *> toRemove;
     list<CompileServer *>::iterator it;
-    list<CompileServer *>::iterator it_old;
+    const bool isSchedulerInfo = dynamic_cast< MonSchedulerInfoMsg *>( m );
 
-    for (it = monitors.begin(); it != monitors.end();) {
-        it_old = it++;
+    for (it = monitors.begin(); it != monitors.end();++it) {
+        CompileServer *csIt = ( *it );
+
+        if ( isSchedulerInfo && !IS_PROTOCOL_108( csIt ) )
+        {
+          continue;
+        }
 
         /* If we can't send it, don't be clever, simply close this monitor.  */
-        if (!(*it_old)->send_msg(*m, MsgChannel::SendNonBlocking /*| MsgChannel::SendBulkOnly*/)) {
+        if (!csIt->send_msg(*m, MsgChannel::SendNonBlocking /*| MsgChannel::SendBulkOnly*/)) {
             trace() << "monitor is blocking... removing" << endl;
-            handle_end(*it_old, 0);
+            toRemove.push_back( csIt );
         }
+    }
+
+    for ( it = toRemove.begin(); it != toRemove.end(); ++it )
+    {
+      handle_end( *it, 0 );
     }
 
     delete m;
