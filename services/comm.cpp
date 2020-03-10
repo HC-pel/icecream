@@ -1371,6 +1371,33 @@ static int get_second_port_for_debug( int port )
     return secondPort ? secondPort : -1;
 }
 
+void MsgChannel::shutdown_socket()
+{
+  // Example was
+  // https://blog.netherlabs.nl/articles/2009/01/18/the-ultimate-so_linger-page-or-why-is-my-tcp-not-reliable
+
+  // Close the send channel
+  shutdown( fd, SHUT_WR );
+
+  sleep( 1 );
+
+  // Read all, what the other side is still sending. Not before this is finished, the other side will look if there is something to receive.
+  while ( true )
+  {
+    usleep( 50000 );
+    char buffer[ 10000 ];
+    const int res = read( fd, buffer, sizeof( buffer ) );
+    if (res <= 0 )
+    {
+      break;
+    }
+  }
+
+  sleep( 2 );
+
+  // Now the socket can be safely closed
+}
+
 void Broadcasts::broadcastSchedulerVersion(int scheduler_port, const char* netname, time_t starttime)
 {
     // Code for older schedulers than version 38. Has endianness problems, the message size

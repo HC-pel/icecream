@@ -198,6 +198,7 @@ public:
 
     // false <--> error (msg not send)
     bool send_msg(const Msg &, int SendFlags = SendBlocking);
+    void shutdown_socket();
 
     bool has_msg(void) const
     {

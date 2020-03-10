@@ -87,6 +87,7 @@ error_client(MsgChannel *client, string error)
 {
     if (IS_PROTOCOL_23(client)) {
         client->send_msg(StatusTextMsg(error));
+        client->shutdown_socket();
     }
 }
 
