@@ -227,7 +227,7 @@ static void add_job_stats(Job *job, JobDoneMsg *msg)
 #endif
 }
 
-static bool handle_end(CompileServer *cs, Msg *);
+static bool handle_end(CompileServer *cs, Msg *, const string & );
 
 static void notify_monitors(Msg *m)
 {
@@ -252,7 +252,7 @@ static void notify_monitors(Msg *m)
 
     for ( it = toRemove.begin(); it != toRemove.end(); ++it )
     {
-      handle_end( *it, 0 );
+      handle_end( *it, 0, "notify_monitors" );
     }
 
     delete m;
@@ -787,7 +787,7 @@ static time_t prune_servers()
         if ((now - (*it)->last_talk) >= MAX_SCHEDULER_PING) {
             CompileServer *old = *it;
             ++it;
-            handle_end(old, 0);
+            handle_end(old, 0, "prune servers 1");
             continue;
         }
 
@@ -807,7 +807,7 @@ static time_t prune_servers()
             trace() << "busy installing for a long time - removing " << (*it)->nodeName() << endl;
             CompileServer *old = *it;
             ++it;
-            handle_end(old, 0);
+            handle_end(old, 0, "prune servers 2");
             continue;
         }
 
@@ -836,7 +836,7 @@ static time_t prune_servers()
             trace() << "removing " << (*it)->nodeName() << endl;
             CompileServer *old = *it;
             ++it;
-            handle_end(old, 0);
+            handle_end(old, 0, "prune servers 3");
             continue;
         } else {
             min_time = min(min_time, MAX_SCHEDULER_PING - now + (*it)->last_talk);
@@ -848,7 +848,7 @@ static time_t prune_servers()
             trace() << "FORCED removing " << (*it)->nodeName() << endl;
             CompileServer *old = *it;
             ++it;
-            handle_end(old, 0);
+            handle_end(old, 0, "prune servers 4");
             continue;
         }
 #endif
@@ -967,7 +967,7 @@ static bool empty_queue()
         NoCSMsg m2(job->id(), job->localClientId());
         if (!job->submitter()->send_msg(m2)) {
             trace() << "failed to deliver job " << job->id() << endl;
-            handle_end(job->submitter(), 0);   // will care for the rest
+            handle_end(job->submitter(), 0, "empty_queue 1");   // will care for the rest
             return true;
         }
     }
@@ -977,7 +977,7 @@ static bool empty_queue()
                 gotit, job->localClientId(), matched_job_id);
         if (!job->submitter()->send_msg(m2)) {
             trace() << "failed to deliver job " << job->id() << endl;
-            handle_end(job->submitter(), 0);   // will care for the rest
+            handle_end(job->submitter(), 0, "empty queue 2");   // will care for the rest
             return true;
         }
     }
@@ -1076,7 +1076,7 @@ static bool handle_login(CompileServer *cs, Msg *_m)
         if (cs->eq_ip(*(*it)) && cs->nodeName() == (*it)->nodeName()) {
             CompileServer *old = *it;
             ++it;
-            handle_end(old, 0);
+            handle_end(old, 0, "handle_login");
             continue;
         }
 
@@ -1248,7 +1248,7 @@ static bool handle_job_done(CompileServer *cs, Msg *_m)
         log_info() << "server: " << j->server()->nodeName() << endl;
         log_info() << "msg came from: " << cs->nodeName() << endl;
         // the daemon is not following matz's rules: kick him
-        handle_end(cs, 0);
+        handle_end(cs, 0, "handle_job_done 1");
         return false;
     }
 
@@ -1257,7 +1257,7 @@ static bool handle_job_done(CompileServer *cs, Msg *_m)
         log_info() << "submitter: " << j->submitter()->nodeName() << endl;
         log_info() << "msg came from: " << cs->nodeName() << endl;
         // the daemon is not following matz's rules: kick him
-        handle_end(cs, 0);
+        handle_end(cs, 0, "handle job done 2");
         return false;
     }
 
@@ -1521,7 +1521,7 @@ static bool handle_line(CompileServer *cs, Msg *_m)
                 return false;
             }
     } else if (cmd == "quit" || cmd == "exit") {
-        handle_end(cs, 0);
+        handle_end(cs, 0, "handle_line 1");
         return false;
     } else if (cmd == "removecs" || cmd == "blockcs") {
         if (l.empty()) {
@@ -1535,7 +1535,7 @@ static bool handle_line(CompileServer *cs, Msg *_m)
                 for (list<CompileServer *>::iterator it = css.begin(); it != css.end(); ++it) {
                     if ((*it)->matches(*si)) {
                         if (cs->send_msg(TextMsg(string("removing host ") + *si))) {
-                            handle_end(*it, 0);
+                            handle_end(*it, 0, "handle_line 2");
                         }
                         break;
                     }
@@ -1631,14 +1631,14 @@ static bool try_login(CompileServer *cs, Msg *m)
     if (ret) {
         cs->setState(CompileServer::LOGGEDIN);
     } else {
-        handle_end(cs, m);
+        handle_end(cs, m, "try_login");
     }
 
     delete m;
     return ret;
 }
 
-static bool handle_end(CompileServer *toremove, Msg *m)
+static bool handle_end(CompileServer *toremove, Msg *m, const string &text)
 {
 #if DEBUG_SCHEDULER > 1
     trace() << "Handle_end " << toremove << " " << m << endl;
@@ -1664,7 +1664,7 @@ static bool handle_end(CompileServer *toremove, Msg *m)
         notify_monitors( new MonSchedulerInfoMsg( starttimeReal, monitors.size() ) );
         break;
     case CompileServer::DAEMON:
-        log_warning() << "logout daemon " << toremove->nodeName() << endl;
+        log_warning() << "logout daemon " << toremove->nodeName() << " (" << text << ")" << endl;
 
         notify_monitors(new MonStatsMsg(toremove->hostId(), "State:Offline\n"));
 
@@ -1759,7 +1759,7 @@ static bool handle_activity(CompileServer *cs)
     m = cs->get_msg(0, true);
 
     if (!m) {
-        handle_end(cs, m);
+        handle_end(cs, m, "handle_activity 1");
         return false;
     }
 
@@ -1785,7 +1785,7 @@ static bool handle_activity(CompileServer *cs)
         ret = handle_stats(cs, m);
         break;
     case M_END:
-        handle_end(cs, m);
+        handle_end(cs, m, "handle_activity 2");
         ret = false;
         break;
     case M_JOB_LOCAL_BEGIN:
@@ -1808,7 +1808,7 @@ static bool handle_activity(CompileServer *cs)
         break;
     default:
         log_info() << "Invalid message type arrived " << (char)m->type << endl;
-        handle_end(cs, m);
+        handle_end(cs, m, "handle_activity 3");
         ret = false;
         break;
     }
@@ -1952,11 +1952,11 @@ static void handle_scheduler_announce(const char* buf, const char* netname, bool
                     {
                         while (!css.empty())
                         {
-                            handle_end(css.front(), NULL);
+                            handle_end(css.front(), NULL, "handle_scheduler_announce 1");
                         }
                         while (!monitors.empty())
                         {
-                            handle_end(monitors.front(), NULL);
+                            handle_end(monitors.front(), NULL, "handle_scheduler_announce 2");
                         }
                     }
                 }
@@ -2347,7 +2347,7 @@ int main(int argc, char *argv[])
                 fd2cs[cs->fd] = cs;
 
                 if (!handle_control_login(cs)) {
-                    handle_end(cs, 0);
+                    handle_end(cs, 0, "main 1");
                     continue;
                 }
 
@@ -2442,7 +2442,7 @@ int main(int argc, char *argv[])
 
     shutdown(broad_fd, SHUT_RDWR);
     while (!css.empty())
-        handle_end(css.front(), NULL);
+        handle_end(css.front(), NULL, "main 2");
     while (!monitors.empty())
         handle_end(monitors.front(), NULL);
     if ((-1 == close(broad_fd)) && (errno != EBADF)){
