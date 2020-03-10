@@ -2126,7 +2126,7 @@ int main(int argc, char *argv[])
 
     time_t next_listen = 0;
 
-    Broadcasts::broadcastSchedulerVersion(scheduler_port, netname, starttimeBroadcast);
+//    Broadcasts::broadcastSchedulerVersion(scheduler_port, netname, starttimeBroadcast);
     last_announce = starttimeBroadcast;
 
     while (!exit_main_loop) {
@@ -2139,7 +2139,12 @@ int main(int argc, char *argv[])
         /* Announce ourselves from time to time, to make other possible schedulers disconnect
            their daemons if we are the preferred scheduler (daemons with version new enough
            should automatically select the best scheduler, but old daemons connect randomly). */
-        if (last_announce + 120 < time(NULL)) {
+        /* Send broaccast only, if at least two daemons are connected. It's possible that this
+           scheduler isn't reachable from the other hosts (firewall). So no daemon, except the local,
+           knows from its existence. But the scheduler can send broadcasts to the outside. So if it
+           is the oldest scheduler in the network, it will regulary cause the end of the second oldest
+           scheduler, which can be reached by the daeomons. */
+        if ( ( last_announce + 120 < time(NULL) ) && ( css.size() > 2 ) ) {
             Broadcasts::broadcastSchedulerVersion(scheduler_port, netname, starttimeBroadcast);
             last_announce = time(NULL);
         }
